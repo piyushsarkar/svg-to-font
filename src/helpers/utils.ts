@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs/promises";
+import { fileURLToPath } from "url";
 
 // ─── Source-type detection ────────────────────────────────────────────────────
 
@@ -57,17 +58,21 @@ export const findSvgs = async (dir: string): Promise<string[]> => {
   return results;
 };
 
+/** Returns true when an SVG string has a real `<svg>` root element (not just inside a comment). */
+export const isValidSvgContent = (raw: string): boolean => {
+  const content = raw
+    .replace(/^\uFEFF/, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\?[\s\S]*?\?>/g, "")
+    .trim();
+  return content.length > 0 && /<svg[\s>]/i.test(content) && /<\/svg>/i.test(content);
+};
+
 /** Returns true when the file content has a real `<svg>` root element (not just inside a comment). */
 export const isValidSvg = async (filePath: string): Promise<boolean> => {
   try {
     const raw = await fs.readFile(filePath, "utf-8");
-    // Strip BOM, XML comments, and processing instructions before checking.
-    const content = raw
-      .replace(/^\uFEFF/, "")
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<\?[\s\S]*?\?>/g, "")
-      .trim();
-    return content.length > 0 && /<svg[\s>]/i.test(content) && /<\/svg>/i.test(content);
+    return isValidSvgContent(raw);
   } catch {
     return false;
   }
@@ -94,3 +99,33 @@ export const flattenSvgs = async (svgPaths: string[], destDir: string): Promise<
     await fs.copyFile(svgPath, path.join(destDir, name));
   }
 };
+
+/**
+ * Write `content` to `filePath`, creating parent directories as needed.
+ */
+export const writeFile = async (
+  filePath: string,
+  content: string | Buffer | NodeJS.ArrayBufferView,
+  encoding?: BufferEncoding,
+): Promise<void> => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, encoding ? { encoding } : undefined);
+};
+
+/** Returns the directory of the file that called `generateFont`. */
+export function callerDir(): string {
+  const lines = (new Error().stack ?? "").split("\n");
+  const ownFile = import.meta.url;
+  for (const line of lines) {
+    const m = line.match(/\(?(file:\/\/.*?):\d+:\d+\)?$/);
+    if (!m) continue;
+    const fileUrl = m[1]!;
+    if (fileUrl === ownFile) continue;
+    try {
+      return path.dirname(fileURLToPath(fileUrl));
+    } catch {
+      continue;
+    }
+  }
+  return process.cwd();
+}

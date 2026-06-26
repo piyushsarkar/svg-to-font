@@ -3,12 +3,13 @@ import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { describe, it, expect } from "vitest";
-import { generateFont, FONT_DEFAULTS } from "../src/index.js";
+import { generateFont } from "../src/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SVG_ICONS = path.join(__dirname, "fixtures/icons");
 const OUTPUT_DIR = path.join(__dirname, "output");
 const OUTPUT = path.join(OUTPUT_DIR, "generateFont");
+const DEFAULT_FONT_NAME = "icon-font";
 
 /** Serve a single SVG file over HTTP and return { url, close }. */
 const serveSvg = (filePath: string): Promise<{ url: string; close: () => void }> =>
@@ -31,17 +32,6 @@ const serveSvg = (filePath: string): Promise<{ url: string; close: () => void }>
     });
   });
 
-describe("defaults", () => {
-  it("has the expected default values", () => {
-    expect(FONT_DEFAULTS.fixSvg).toBe(true);
-    expect(FONT_DEFAULTS.fontHeight).toBe(1000);
-    expect(FONT_DEFAULTS.normalize).toBe(false);
-    expect(FONT_DEFAULTS.css).toBe(false);
-    expect(FONT_DEFAULTS.traceResolution).toBe(800);
-    expect(FONT_DEFAULTS.formats).toEqual(["ttf"]);
-  });
-});
-
 describe("generateFont", () => {
   it("throws when the source path does not exist", async () => {
     await expect(generateFont({ input: "/non/existent/path", output: OUTPUT })).rejects.toThrow(
@@ -57,17 +47,17 @@ describe("generateFont", () => {
   });
 
   it("generates a font from a directory of SVGs", async () => {
-    const glyphmap = await generateFont({ input: SVG_ICONS, output: OUTPUT });
+    const { glyphmap } = await generateFont({ input: SVG_ICONS, output: OUTPUT });
     expect(typeof glyphmap).toBe("object");
     expect(Object.keys(glyphmap).length).toBeGreaterThan(0);
 
     // the glyphmap JSON file must be written to output
-    const raw = await fs.readFile(path.join(OUTPUT, `${FONT_DEFAULTS.fontName}.json`), "utf-8");
+    const raw = await fs.readFile(path.join(OUTPUT, `${DEFAULT_FONT_NAME}.json`), "utf-8");
     expect(JSON.parse(raw)).toEqual(glyphmap);
   });
 
   it("glyphmap keys match the SVG file names", async () => {
-    const glyphmap = await generateFont({ input: SVG_ICONS, output: OUTPUT });
+    const { glyphmap } = await generateFont({ input: SVG_ICONS, output: OUTPUT });
 
     const expectedKeys = ["arrow-right", "home", "star"];
     for (const key of expectedKeys) {
@@ -81,7 +71,7 @@ describe("generateFont", () => {
   });
 
   it("generates a font from a single SVG file", async () => {
-    const glyphmap = await generateFont({
+    const { glyphmap } = await generateFont({
       input: path.join(SVG_ICONS, "home.svg"),
       fontName: "single-icon",
       output: OUTPUT,
@@ -95,12 +85,9 @@ describe("generateFont", () => {
     const outDir = path.join(OUTPUT, "separate-dir/font");
     await fs.mkdir(glyphmapDir, { recursive: true });
 
-    const glyphmap = await generateFont({ input: SVG_ICONS, output: outDir, glyphmapDir });
+    const { glyphmap } = await generateFont({ input: SVG_ICONS, output: outDir, glyphmapDir });
 
-    const raw = await fs.readFile(
-      path.join(glyphmapDir, `${FONT_DEFAULTS.fontName}.json`),
-      "utf-8",
-    );
+    const raw = await fs.readFile(path.join(glyphmapDir, `${DEFAULT_FONT_NAME}.json`), "utf-8");
     expect(JSON.parse(raw)).toEqual(glyphmap);
   });
 });
@@ -109,7 +96,7 @@ describe("generateFont (HTTPS SVG URL)", () => {
   it("fetches a remote SVG and generates a font from it", async () => {
     const { url, close } = await serveSvg(path.join(SVG_ICONS, "home.svg"));
     try {
-      const glyphmap = await generateFont({
+      const { glyphmap } = await generateFont({
         input: url,
         fontName: "url-icon",
         output: OUTPUT,
@@ -143,67 +130,6 @@ describe("generateFont (HTTPS SVG URL)", () => {
   });
 });
 
-describe("generateFont (git source)", () => {
-  it("throws when no SVGs are found in the cloned repository", async () => {
-    const gitPath = path.join(OUTPUT_DIR, "remote-resources", "git-no-svgs");
-    await fs.rm(gitPath, { recursive: true, force: true });
-    await fs.mkdir(gitPath, { recursive: true });
-
-    // Build a local bare git repo (no SVGs) — no network required.
-    // The path ends in `.git` so generateFont detects it as a git source.
-    const { execSync } = await import("child_process");
-    const repoPath = path.join(gitPath, "empty-icons.git");
-    const workTree = path.join(gitPath, "worktree");
-    execSync(`git init --bare "${repoPath}"`);
-    execSync(`git clone "${repoPath}" "${workTree}"`);
-    await fs.writeFile(path.join(workTree, "README.md"), "# no svgs here");
-    execSync("git add .", { cwd: workTree });
-    execSync("git -c user.email=t@t.com -c user.name=T commit -m init", {
-      cwd: workTree,
-    });
-    execSync("git push origin HEAD", { cwd: workTree });
-
-    await expect(
-      generateFont({ input: repoPath, fontName: "no-svg-font", output: OUTPUT }),
-    ).rejects.toThrow("No SVG files found in repository");
-  });
-
-  it("generates a font from a local git repository containing SVGs", async () => {
-    const gitPath = path.join(OUTPUT_DIR, "remote-resources", "git-with-svgs");
-    await fs.rm(gitPath, { recursive: true, force: true });
-    await fs.mkdir(gitPath, { recursive: true });
-
-    const { execSync } = await import("child_process");
-    const repoPath = path.join(gitPath, "icon-repo.git");
-    const workTree = path.join(gitPath, "worktree");
-    execSync(`git init --bare "${repoPath}"`);
-    execSync(`git clone "${repoPath}" "${workTree}"`);
-
-    // Copy the fixture SVGs into the work tree
-    for (const file of await fs.readdir(SVG_ICONS)) {
-      await fs.copyFile(path.join(SVG_ICONS, file), path.join(workTree, file));
-    }
-    execSync("git add .", { cwd: workTree });
-    execSync('git -c user.email=t@t.com -c user.name=T commit -m "add icons"', {
-      cwd: workTree,
-    });
-    execSync("git push origin HEAD", { cwd: workTree });
-
-    const glyphmap = await generateFont({
-      input: repoPath,
-      fontName: "git-icons",
-      output: OUTPUT,
-    });
-
-    expect(Object.keys(glyphmap).length).toBeGreaterThan(0);
-    for (const val of Object.values(glyphmap)) {
-      expect(typeof val).toBe("number");
-    }
-    const raw = await fs.readFile(path.join(OUTPUT, "git-icons.json"), "utf-8");
-    expect(JSON.parse(raw)).toEqual(glyphmap);
-  });
-});
-
 describe("generateFont (multiple sources)", () => {
   it("merges icons from two local directories into a single font", async () => {
     // Build two separate dirs — each with a different subset of the fixture SVGs.
@@ -220,7 +146,7 @@ describe("generateFont (multiple sources)", () => {
     await fs.copyFile(path.join(SVG_ICONS, "home.svg"), path.join(dirA, "home.svg"));
     await fs.copyFile(path.join(SVG_ICONS, "star.svg"), path.join(dirB, "star.svg"));
 
-    const glyphmap = await generateFont({
+    const { glyphmap } = await generateFont({
       input: [dirA, dirB],
       fontName: "merged-icons",
       output: outDir,
@@ -251,7 +177,7 @@ describe("generateFont (multiple sources)", () => {
     await fs.copyFile(path.join(SVG_ICONS, "home.svg"), path.join(dirA, "home.svg"));
     await fs.copyFile(path.join(SVG_ICONS, "home.svg"), path.join(dirB, "home.svg"));
 
-    const glyphmap = await generateFont({
+    const { glyphmap } = await generateFont({
       input: [dirA, dirB],
       fontName: "dedup-icons",
       output: outDir,

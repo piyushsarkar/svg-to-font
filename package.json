@@ -46,12 +46,12 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "chalk": "^5.6.2",
     "citty": "^0.2.2",
-    "ora": "^9.4.0",
     "oslllo-svg-fixer": "^6.0.1",
-    "simple-git": "^3.36.0",
-    "svgtofont": "^6.5.2"
+    "picocolors": "^1.1.1",
+    "svg2ttf": "^6.1.0",
+    "svgicons2svgfont": "^15.0.1",
+    "svgo": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
