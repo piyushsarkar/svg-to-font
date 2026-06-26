@@ -10,17 +10,21 @@ const gunzipAsync = promisify(gunzip);
 
 /**
  * Resolve one or more source strings into a deduplicated, validated list of
- * `{ name, content }` SVG entries and a sensible default output directory.
+ * `{ name, content }` SVG entries.
  *
  * Supported source types per entry:
  * - **HTTPS SVG URL** — fetched directly; content returned in-memory.
- * - **GitHub `/tree/<branch>/<path>` URL** — tarball downloaded and only SVGs
- *   under the given subdirectory are extracted in-memory.
- * - **GitHub repo URL** — tarball downloaded and all SVGs extracted in-memory.
+ * - **GitHub `/tree/<branch>/<path>` URL** — tarball downloaded from GitHub and
+ *   only SVGs under the given subdirectory are extracted in-memory.
+ * - **GitHub repo URL** — tarball downloaded from GitHub and all SVGs extracted
+ *   in-memory. Only GitHub HTTPS URLs are supported; SSH and non-GitHub URLs
+ *   are not.
  * - **Local `.svg` file** — read directly.
  * - **Local directory** — all `.svg` files read from disk.
  *
- * Throws if `output` is omitted for non-local-directory or multi-source inputs.
+ * Duplicate icon names are automatically suffixed with a numeric counter.
+ * Entries whose content does not contain a valid `<svg>` root are silently
+ * skipped.
  */
 export async function processInput(
   input: string | string[],

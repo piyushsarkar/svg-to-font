@@ -14,8 +14,10 @@ export type GenerateFontOptions = {
    * - **Local directory** — every `.svg` file in the folder becomes an icon.
    * - **Local `.svg` file** — generates a font with that single icon.
    * - **HTTPS SVG URL** — the file is fetched and used as the single icon.
-   * - **Git / GitHub repo URL** — the repo is shallow-cloned and all `.svg`
+   * - **GitHub repo URL** — the repo's tarball is downloaded and all `.svg`
    *   files found anywhere in it are collected into the font.
+   * - **GitHub subdirectory URL** (`/tree/<branch>/<path>`) — only SVGs
+   *   under the given subdirectory are extracted.
    *
    * Pass an array to merge icons from multiple sources into a single font.
    */
@@ -48,17 +50,22 @@ export type GenerateFontOptions = {
 // ─── generateFont ─────────────────────────────────────────────────────────────
 
 /**
- * Generate a single icon font (and its glyphmap) from any of these sources:
+ * Generate a single icon font (TTF) and its glyphmap from any of these sources:
  *
  * - **Local directory** — every `.svg` file in the folder becomes an icon.
  * - **Local `.svg` file** — generates a font containing just that one icon.
  * - **HTTPS SVG URL** — the file is fetched and used as the single icon source.
- * - **Git / GitHub repo URL** — the repo is cloned (shallow), all `.svg` files
- *   found anywhere in it are collected and turned into the font.
+ * - **GitHub repo URL** — the repo's tarball is downloaded from GitHub and all
+ *   `.svg` files found anywhere in it are turned into the font.
+ * - **GitHub subdirectory URL** (`/tree/<branch>/<path>`) — only SVGs under
+ *   the specified subdirectory are extracted.
  *
  * When `output` is omitted the font is written next to the source, but only
  * when the input is a single local directory — for all other source types
- * (remote URL, git repo, local file, or multiple sources) `output` is required.
+ * (remote URL, GitHub repo, local file, or multiple sources) `output` is required.
+ *
+ * @returns An object containing the glyphmap (`Record<string, number>`) and the
+ * raw TTF font data as a `Buffer`.
  */
 export const generateFont = async (
   options: GenerateFontOptions,
