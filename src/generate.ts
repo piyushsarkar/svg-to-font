@@ -1,7 +1,7 @@
 import path from "path";
 import { buildGlyphs, fixSvgString, optimizeSvgString } from "./helpers/buildGlyphs";
 import { createSvgFont, createTTF } from "./helpers/fonts";
-import { callerDir, writeFile } from "./helpers/utils";
+import { writeFile } from "./helpers/utils";
 import { processInput } from "./helpers/processInput";
 import { createLogger } from "./helpers/logger";
 
@@ -40,9 +40,9 @@ export type GenerateFontOptions = {
   normalize?: boolean;
   /**
    * Override the directory used to resolve relative `input`, `output`, and `glyphmapDir`
-   * paths. Defaults to the calling file's own directory (auto-detected from the call stack).
+   * paths. Defaults to `process.cwd()`.
    */
-  cwd?: string;
+  baseDir?: string;
   /** Suppress console logging. Defaults to `false`. */
   silent?: boolean;
 };
@@ -70,7 +70,7 @@ export type GenerateFontOptions = {
 export const generateFont = async (
   options: GenerateFontOptions,
 ): Promise<{ glyphmap: Record<string, number>; ttfBuffer: Buffer }> => {
-  const cwd = options.cwd ?? callerDir();
+  const baseDir = options.baseDir ?? process.cwd();
   const fontName = options.fontName ?? "icon-font";
   const logger = createLogger(fontName, options.silent);
   const shouldFixSvg = options.fixSvg !== false;
@@ -79,7 +79,7 @@ export const generateFont = async (
     throw new Error("`output` is required when the input is not a local directory");
   }
 
-  const svgCollection = await processInput(options.input, cwd, logger);
+  const svgCollection = await processInput(options.input, baseDir, logger);
 
   if (shouldFixSvg) logger.step("Processing SVGs");
   const { glyphs, glyphmap } = await buildGlyphs({
@@ -105,8 +105,10 @@ export const generateFont = async (
   const ttfBuffer = await createTTF(svgFont);
 
   if (options.output) {
-    const outputDist = path.resolve(cwd, options.output);
-    const glyphmapDist = options.glyphmapDir ? path.resolve(cwd, options.glyphmapDir) : outputDist;
+    const outputDist = path.resolve(baseDir, options.output);
+    const glyphmapDist = options.glyphmapDir
+      ? path.resolve(baseDir, options.glyphmapDir)
+      : outputDist;
 
     await writeFile(path.join(outputDist, `${fontName}.ttf`), ttfBuffer);
     await writeFile(
@@ -116,7 +118,7 @@ export const generateFont = async (
     );
 
     const glyphCount = Object.keys(glyphmap).length;
-    const outRel = path.relative(cwd, outputDist) || ".";
+    const outRel = path.relative(baseDir, outputDist) || ".";
     logger.done(`Font ${fontName} generated`, `→ ${outRel}  (${glyphCount} glyphs)`);
   }
   return { glyphmap, ttfBuffer };

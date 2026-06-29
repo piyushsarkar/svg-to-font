@@ -1,6 +1,5 @@
 import path from "path";
 import fs from "fs/promises";
-import { fileURLToPath } from "url";
 
 // ─── Source-type detection ────────────────────────────────────────────────────
 
@@ -111,21 +110,3 @@ export const writeFile = async (
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, content, encoding ? { encoding } : undefined);
 };
-
-/** Returns the directory of the file that called `generateFont`. */
-export function callerDir(): string {
-  const lines = (new Error().stack ?? "").split("\n");
-  const ownFile = import.meta.url;
-  for (const line of lines) {
-    const m = line.match(/\(?(file:\/\/.*?):\d+:\d+\)?$/);
-    if (!m) continue;
-    const fileUrl = m[1]!;
-    if (fileUrl === ownFile) continue;
-    try {
-      return path.dirname(fileURLToPath(fileUrl));
-    } catch {
-      continue;
-    }
-  }
-  return process.cwd();
-}
